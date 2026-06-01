@@ -1,0 +1,59 @@
+Training and crossvalidation code. Reads CSV files from ../data/ folder.
+  - random_state seed is set to 9149, jumbled flag set to False
+  - binder_label is True if abs(Cyp7 Avg, L2FC) > 0 ; used as proxy, any measured property except for PGC works.
+  - coreg_label is True if abs(PGC Avg, L2FC) > 0.45
+  - activity_label is True if ANY abs(PGC Avg, Cyp7 Av, Cyp8 Avg) is > 0.45
+~~~TRAINING BLIP-L
+early stop at epoch= 402
+fold: 0
+ AUPRC: 0.36
+ AUROC: 0.64
+ Precision: 0.36
+ Recall: 0.61
+ Accuracy: 0.59
+ MCC: 0.15
+early stop at epoch= 560
+fold: 1
+ AUPRC: 0.42
+ AUROC: 0.70
+ Precision: 0.42
+ Recall: 0.66
+ Accuracy: 0.62
+ MCC: 0.20
+early stop at epoch= 575
+fold: 2
+ AUPRC: 0.42
+ AUROC: 0.73
+ Precision: 0.42
+ Recall: 0.69
+ Accuracy: 0.63
+ MCC: 0.24
+~~~TRAINING ALIP-L
+ binder_pred, top 10% cutoff: 1.1183431148529053
+ binder_pred, top 30% cutoff: 0.27878206968307495
+ binder_pred, top 50% cutoff: -0.22286522388458252
+   Activators before truncation  89
+   Activators after truncation  67
+   Dataset  630
+fold: 0
+ AUPRC: 0.31
+ AUROC: 0.81
+ Precision: 0.33
+ Recall: 0.77
+ Accuracy: 0.70
+ MCC: 0.30
+fold: 1
+ AUPRC: 0.34
+ AUROC: 0.82
+ Precision: 0.37
+ Recall: 0.86
+ Accuracy: 0.64
+ MCC: 0.30
+early stop at epoch= 2854
+fold: 2
+ AUPRC: 0.36
+ AUROC: 0.79
+ Precision: 0.38
+ Recall: 0.78
+ Accuracy: 0.68
+ MCC: 0.29

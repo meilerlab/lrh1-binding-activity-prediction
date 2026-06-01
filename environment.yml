@@ -1,0 +1,17 @@
+name: lrh1models
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+  - nodefaults
+dependencies:
+  - cpuonly
+  - matplotlib
+  - numpy
+  - pandas
+  - python=3.10
+  - pytorch
+  - scikit-learn
+  - rdkit
+  - biopython
+  - mdanalysis
