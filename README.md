@@ -6,7 +6,7 @@
 This repository contains code for training two separate multi-layer perceptrons, BLiP-L and ALiP-L. These models predict binder and activity likelihood, respectively, of a compound against the target protein LRH-1. The models are trained on data from a wet-lab screen (doi: 10.1021/acschembio.2c00805) and were used in prospective screen. 
 
 ### Associated Preprint
-INSERT PAPER DOI
+Chang-Gonzalez AC, Campbell AN, Bell EW, Blind R, Meiler J. Structure-guided compound prioritization strategy for virtual screening identifies putative binders for the nuclear receptor LRH-1. bioRxiv 2026.doi: 10.64898/2026.06.04.730240
 
 ### General uses for this repository
 - Select new compounds for testing from pre-computed predictions in **`./out/list_all_vu98k.csv`**
@@ -100,5 +100,13 @@ Files in ./out/ folder:
 - 1.5_list_filter_by_location_mark_confidence.csv: Compound list following structure-based filtering with confidence assignments
 - vu98k_selected_for_testing.csv: List of 95 compounds tested in the lab
 
+Files in ./additional_scripts/ :
+
+- bcl_for_mays/: BCL scripts for generating models of compounds in Mays paper (doi: 10.1021/acs.jmedchem.9b00753)  
+- *crossval* : Scripts for running cross-validation tests and plotting metrics
+- analyze_vu98k_preds.py : enrichment analyses
+- calc_tanimoto_paired.py : calculate pairwise tanimoto coefficient
+- template_*_contacts* : protein-ligand interaction
+
 ### Citation
-If you use this code, the models, datasets, or preditions in your research, please cite the corresponding preprint INSERT PAPER DOI . 
+If you use this code, the models, datasets, or predictions in your research, please cite the corresponding preprint https://doi.org/10.64898/2026.06.04.730240. 
