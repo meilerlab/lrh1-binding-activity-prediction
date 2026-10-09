@@ -1,0 +1,26 @@
+Training and crossvalidation code. Reads CSV files from ../data/ folder.
+  - random_state seed is set to 691, jumbled flag set to False
+  - binder_label is True if abs(Cyp7 Avg, L2FC) > 0 ; used as proxy, any measured property except for PGC works.
+  - coreg_label is True if abs(PGC Avg, L2FC) > 0.45
+  - activity_label is True if ANY abs(PGC Avg, Cyp7 Av, Cyp8 Avg) is > 0.45
+  ablation=base_db
+  files used: ['../data/out_eterms_IUWtail_7tt8_lid.csv', '../data/db/out_eterms_full.csv', '../data/db/out_eterms_4pld.csv', '../data/db/out_eterms_7tt8.csv']
+  rows=1939 compounds=1780 binders=197
+~~~TRAINING BLIP-L
+early stop at epoch= 374
+fold: 0
+ AUPRC: 0.17
+ AUROC: 0.67
+ Precision: 0.18
+ Recall: 0.76
+ Accuracy: 0.53
+ MCC: 0.12
+early stop at epoch= 100
+fold: 1
+ AUPRC: 0.19
+ AUROC: 0.51
+ Precision: 0.20
+ Recall: 0.68
+ Accuracy: 0.34
+ MCC: -0.02
+fold: 2

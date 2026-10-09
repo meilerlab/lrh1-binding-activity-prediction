@@ -4,7 +4,8 @@
 train_crossval_save.py : code to train and perform cross-validation of BLiP-L and ALiP-L. 
 Trained models are saved separately to .pth files. 
 
-Usage: python train_crossval_save.py --training_mode <crossval,save> --seed <hard set seed> --jumbled 
+Usage: python train_crossval_save.py --training_mode <crossval,save> --seed <hard set seed> --jumbled
+See run_crossval.sh for commands used for cross-validation runs. 
 '''
 
 import sys
@@ -21,12 +22,18 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, Subset
 
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from sklearn import metrics
 
 # ANN architecture and data format 
 from utils_define_data_model import BioData,Network,NetworkActivity
 import predict
+
+# Other models
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
+import lightgbm as lgb
 
 ##############################
 # global variables 
@@ -37,6 +44,20 @@ blipl_params = [1e-4, 3000] # lr, maxEpochs
 alipl_params = [1e-5, 3000] # lr, maxEpochs
 torch.set_printoptions(precision=6, sci_mode=False)
 plt.rcParams["font.size"] = 12
+
+# params for additional model tests
+RUN_IDX = False
+RUN_LOGREG = False
+RUN_XGBOOST = False
+RUN_LIGHTGBM = False
+RUN_RF = False
+logreg_params = {"C": 1.0, "class_weight": "balanced"} # L2, on standardized features
+xgb_params = {"max_depth": 2, "n_estimators": 200, "learning_rate": 0.05, "min_child_weight": 10}
+lgbm_params = {"num_leaves": 4, "min_child_samples": 30, "learning_rate": 0.05, "n_estimators": 200, "verbose": -1}
+rf_params = {"n_estimators": 500, "max_features": "sqrt", "min_samples_leaf": 8,"class_weight": "balanced_subsample" }
+
+# ablation study
+ABLATION = "all"
 ############################################################
     
 class EarlyStopper:
@@ -92,29 +113,40 @@ def main(training_mode):
     ##########
     
     eterms_list=['if_X_fa_atr','if_X_fa_elec','if_X_fa_rep','if_X_fa_sol','if_X_hbond_bb_sc','if_X_hbond_sc']
+        
+    # read energy terms & experimental data.
+    constructs = ["full","4pld","7tt8"]
+    use_rl = ABLATION in ("all", "base_rl", "no_full", "no_4pld", "no_7tt8", "base_rl_no_full", "base_rl_no_4pld", "base_rl_no_7tt8")
+    use_db = ABLATION in ("all", "base_db", "no_full", "no_4pld", "no_7tt8")
+    skip = {"no_full": "full", "no_4pld": "4pld", "no_7tt8":"7tt8", "base_rl_no_full": "full", "base_rl_no_4pld": "4pld", "base_rl_no_7tt8":"7tt8"}.get(ABLATION)
     
     ## Prepare data  
     expCSV = "../data/malabanan23_si5.csv" # CSV containing experimental measurements
-    
-    # read energy terms & experimental data. 
     rlDF,_=prepData("../data/out_eterms_IUWtail_7tt8_lid.csv",expCSV)
-    # supplement w eterms from 4pld, 7tt8, and full docks of 58 binders
-    rlDF=addData_binders(rlDF,"../data/rl/out_eterms_full.csv",expCSV)
-    rlDF=addData_binders(rlDF,"../data/rl/out_eterms_4pld.csv",expCSV)
-    rlDF=addData_binders(rlDF,"../data/rl/out_eterms_7tt8.csv",expCSV)
-    
-    # supplement w eterms from db->rl docking of 58 binders
-    dbDF = prepDBData('../data/db/out_eterms_7tt8.csv',expCSV,1,'interface_delta_X')
-    dbDF = dbDF.reindex(columns=rlDF.columns)
-    rlDF = pd.concat([rlDF,dbDF],ignore_index=True)
-    
-    dbDF = prepDBData('../data/db/out_eterms_full.csv',expCSV,1,'interface_delta_X')    
-    dbDF = dbDF.reindex(columns=rlDF.columns)
-    rlDF = pd.concat([rlDF,dbDF],ignore_index=True)
-    
-    dbDF = prepDBData('../data/db/out_eterms_4pld.csv',expCSV,1,'interface_delta_X')
-    dbDF = dbDF.reindex(columns=rlDF.columns)
-    rlDF = pd.concat([rlDF,dbDF],ignore_index=True)
+    used = ["../data/out_eterms_IUWtail_7tt8_lid.csv"]
+
+    if use_rl:
+        for c in constructs:
+            if c == skip:
+                continue
+            path = f"../data/rl/out_eterms_{c}.csv"
+            rlDF=addData_binders(rlDF,path,expCSV)
+            used.append(path)
+
+    if use_db:
+        for c in constructs:
+            if c == skip:
+                continue
+            path = f"../data/db/out_eterms_{c}.csv"
+            dbDF = prepDBData(path,expCSV,1,'interface_delta_X')
+            dbDF = dbDF.reindex(columns=rlDF.columns)
+            rlDF = pd.concat([rlDF, dbDF], ignore_index=True)
+
+            used.append(path)
+
+    print(f"  ablation={ABLATION}")
+    print(f"  files used: {used}")
+    print(f"  rows={len(rlDF)} compounds={rlDF['VU Number'].nunique()} binders={(rlDF['binder_label']==1).sum()}")
 
     #rlDF.to_csv("rlDF_from_train_crossval.csv",index=False) # used for analyses scripts 
     
@@ -130,8 +162,8 @@ def main(training_mode):
     exp_np=(rlDF['binder_label']).to_numpy()
 
     if training_mode=="crossval": # peform cross-validation 
-        annCrossValid(eterms_np,exp_np.reshape(len(exp_np),1),"binder")
-        plt.savefig('result_blipl_crossval.pdf',dpi=300)
+        annCrossValid(eterms_np,exp_np.reshape(len(exp_np),1),rlDF["VU Number"].to_numpy(),"binder",idx=rlDF['interface_delta_X'].to_numpy())
+        #plt.savefig('result_blipl_crossval.pdf',dpi=300)
     elif training_mode=="save": # train and save a new model     
         annTrainAll(eterms_np,exp_np.reshape(len(exp_np),1),"binder","test_blip-l.pth")
 
@@ -147,8 +179,8 @@ def main(training_mode):
     blippth='blip-l.pth'
     print(f"~~~TRAINING ALIP-L, loading {blippth}")
     
-    rlDFBinder,rCutBinder=getBinderPred(bliplpth,rlDF,eterms_list) # load previously saved model
-    features=eterms_list
+    rlDFBinder,rCutBinder=getBinderPred(blippth,rlDF,eterms_list) # load previously saved model
+    features=eterms_list.copy()
     features.append("binder_pred")
     dfBinders = rlDFBinder[rlDFBinder['binder_pred'] > rCutBinder]
 
@@ -160,8 +192,8 @@ def main(training_mode):
     exp_np=(dfBinders['activity_label']).to_numpy()
 
     if training_mode=="crossval": # perform cross-validation
-        annCrossValid(eterms_np,exp_np.reshape(len(exp_np),1),"activity")
-        plt.savefig('result_alipl_crossval.pdf',dpi=300)
+        annCrossValid(eterms_np,exp_np.reshape(len(exp_np),1),dfBinders["VU Number"].to_numpy(),"activity",idx=dfBinders['interface_delta_X'].to_numpy())        
+        #plt.savefig('result_alipl_crossval.pdf',dpi=300)
     elif training_mode=="save": # train and save a new model 
         annTrainAll(eterms_np,exp_np.reshape(len(exp_np),1),"activity",'test_alip-l.pth') 
 
@@ -304,28 +336,31 @@ def prepDBData(rldata,expdata,saveOne,saveMetric):
     return rlDF 
 
 ##########
-def annCrossValid(X0,y0,MODE):
+def annCrossValid(X0,y0,groups,MODE,idx=None):
 
     # convert pd df to pytorch tensor
     x0arr=np.array(X0,dtype=np.float32)
-    y0arr=np.array(y0,dtype=np.float32)    
+    y0arr=np.array(y0,dtype=np.float32)
     ds=BioData(torch.tensor(x0arr,dtype=torch.float),torch.tensor(y0arr,dtype=torch.float))
 
     # to preserve true/false ratio
     labels = [outputs for _, outputs in ds]
-    
-    # split data 
-    kf = StratifiedKFold(n_splits=3,shuffle=True,random_state=SEED)
-    trues = torch.empty(0,1)
-    preds = torch.empty(0,1)
 
+    # split data 
+    kf = StratifiedGroupKFold(n_splits=3,shuffle=True,random_state=SEED)
+    groups = np.array(groups)
+    
     # for plots
     figloss,axloss=plt.subplots(1,figsize=(5,4))
     figsc,axsc=plt.subplots(1,figsize=(4,4)) 
     fig,ax=plt.subplots(2,figsize=(5,7))
     
     # TRAIN & VALIDATE
-    for ifold, (trainIdx, validIdx) in enumerate(kf.split(range(len(ds)),labels)): # stratified
+    for ifold, (trainIdx, validIdx) in enumerate(kf.split(range(len(ds)),labels,groups=groups)): # group stratified
+        
+        assert set(groups[trainIdx]).isdisjoint(groups[validIdx]), f"Compound leakage in fold {ifold}" # check data leakage
+
+        ## for the ANN 
         trainSet = Subset(ds, trainIdx)
         validSet = Subset(ds, validIdx)
         validLoader = DataLoader(validSet, batch_size=64,shuffle=False)
@@ -334,19 +369,27 @@ def annCrossValid(X0,y0,MODE):
             trainLoader = DataLoader(jumble_subset(trainSet, seed=ifold), batch_size=64, shuffle=True)
         else:
             trainLoader = DataLoader(trainSet, batch_size=64,shuffle=True)            
+        ### 
 
-        if (MODE=="binder"): # binder prediction WAS RUN W/O MODE
-            foldTrainLoss, foldValidLoss, foldTrues, foldPreds , _ = trainModel(trainLoader, valid=validLoader, net=Network(), lr=blipl_params[0], maxEpochs=blipl_params[1])
-            
+        ## train using other modelse, else use ANN 
+        if RUN_IDX or RUN_LOGREG or RUN_XGBOOST or RUN_LIGHTGBM or RUN_RF: 
+            idxArr = None if idx is None else np.array(idx,dtype=np.float32)             # for Rosetta interface score alone
+            foldTrainLoss, foldValidLoss, foldTrues, foldPreds = runOtherModel(x0arr,y0arr,idxArr,trainIdx,validIdx,ifold)            
+        elif (MODE=="binder"): # binder prediction WAS RUN W/O MODE
+            foldTrainLoss, foldValidLoss, foldTrues, foldPreds , _ = trainModel(trainLoader, valid=validLoader,
+                                                                                net=Network(), lr=blipl_params[0], maxEpochs=blipl_params[1])
         elif (MODE=="activity"): # regulator/activity prediction
-            foldTrainLoss, foldValidLoss, foldTrues, foldPreds , _ = trainModel(trainLoader, valid=validLoader, net=NetworkActivity(), lr=alipl_params[0], maxEpochs=alipl_params[1])
+            foldTrainLoss, foldValidLoss, foldTrues, foldPreds , _ = trainModel(trainLoader, valid=validLoader,
+                                                                                net=NetworkActivity(), lr=alipl_params[0], maxEpochs=alipl_params[1])
         else :
             sys.exit("ERROR: unknown model MODE (needs to be either `binder' or `activity' ")
-
+           
         # performance
         print("fold:",ifold)
-        axloss.plot([i for i in range(len(foldTrainLoss))],foldTrainLoss,label='Train '+str(ifold))
-        axloss.plot([i for i in range(len(foldValidLoss))],foldValidLoss,label='Validation '+str(ifold))
+        if foldTrainLoss:
+            axloss.plot([i for i in range(len(foldTrainLoss))],foldTrainLoss,label='Train '+str(ifold))
+            axloss.plot([i for i in range(len(foldValidLoss))],foldValidLoss,label='Validation '+str(ifold))
+            
         foldPredsBin = np.where(foldPreds > 0, 1, 0)
         auprc = plotPRC(foldTrues,foldPreds,ax[0],"",'-')
         auroc = plotROC(foldTrues,foldPreds,ax[1],"",'-')
@@ -530,7 +573,6 @@ def getBinderPred(savedNetBinder,df,wts):
 
     ####################
     # add column binary activity label 
-    df['activity_label']= (abs(df['PGC Avg, L2FC']) > nExpCut).astype(int)
     df['activity_label'] = (
         (abs(df['PGC Avg, L2FC']) > nExpCut) |
         (abs(df['Cyp7 Avg, L2FC']) > nExpCut) |
@@ -579,6 +621,48 @@ def jumble_subset(subset, features_to_jumble=None, seed=None):
 
     return BioData(X, y)
 
+##############################
+def runOtherModel(x0arr,y0arr,idxArr,trainIdx,validIdx,ifold):
+    # Additional models for baseline.
+    # Returns logits so downstream thresholding at >0 and sigmoid plotting behave the same as for ANN.
+
+    xTrain, xValid = x0arr[trainIdx], x0arr[validIdx]
+    yTrain, yValid = y0arr[trainIdx].ravel(), y0arr[validIdx].ravel()
+    trues = torch.tensor(yValid, dtype=torch.float).reshape(-1,1)
+    
+    posWeight = (yTrain == 0).sum() / max((yTrain == 1).sum(), 1)
+    
+    if RUN_IDX: # no training, rank by rosetta interface score
+        if idxArr is None:
+            sys.exit("ERROR: RUN_IDX needs interface_delta_X passed")
+            # negate s.t. higher->better binder
+        score = -(idxArr[validIdx] - np.median(idxArr[trainIdx]))
+        return [], [], trues, torch.tensor(score, dtype=torch.float).reshape(-1,1)
+    
+    elif RUN_LOGREG:
+        mean, std = xTrain.mean(axis=0), xTrain.std(axis=0)
+        clf = LogisticRegression(random_state=SEED, **logreg_params)
+        clf.fit((xTrain - mean)/std, yTrain)
+        logits = clf.decision_function((xValid - mean)/std)
+        
+    elif RUN_XGBOOST:
+        clf = xgb.XGBClassifier(random_state=SEED, scale_pos_weight=posWeight, **xgb_params)
+        clf.fit(xTrain, yTrain)
+        logits = clf.predict(xValid, output_margin=True)                
+        
+    elif RUN_LIGHTGBM:
+        clf = lgb.LGBMClassifier(random_state=SEED, scale_pos_weight=posWeight, **lgbm_params)
+        clf.fit(xTrain, yTrain)
+        logits = clf.predict(xValid, raw_score=True)
+        
+    elif RUN_RF:
+        clf = RandomForestClassifier(random_state=SEED, **rf_params)
+        clf.fit(xTrain, yTrain)
+        p = np.clip(clf.predict_proba(xValid)[:,1], 1e-6, 1-1e-6)
+        logits = np.log(p/(1-p))
+
+    return [], [], trues, torch.tensor(logits, dtype=torch.float).reshape(-1,1)
+        
 ########################################
 if __name__=="__main__":
 
@@ -586,10 +670,21 @@ if __name__=="__main__":
     parser.add_argument("--seed", type=int, default=SEED)
     # set training mode (either perform cros-validation or train and save a new model)
     parser.add_argument("--training_mode", type=str, default="crossval", choices=["crossval", "save"]) 
-    parser.add_argument("--jumbled", action="store_true", default=False) # runs jumbled benchmark     
+    parser.add_argument("--jumbled", action="store_true", default=False) # runs jumbled benchmark
+    parser.add_argument("--method", type=str, default="ann", choices=["ann","idx","logreg","xgboost","lightgbm","rf"])
 
+    parser.add_argument("--ablation", type=str, default="all", choices=["all","base","base_rl","base_db","no_full","no_4pld","no_7tt8","base_rl_no_full","base_rl_no_4pld","base_rl_no_7tt8"])
+    
     args = parser.parse_args()    
     SEED = args.seed
     RUN_JUMBLED = args.jumbled and args.training_mode != "save"  # force False if train_save just in case
+    RUN_IDX = args.method == "idx"
+    RUN_LOGREG = args.method == "logreg"
+    RUN_XGBOOST = args.method == "xgboost"
+    RUN_LIGHTGBM = args.method == "lightgbm"
+    RUN_RF = args.method == "rf"
+    ABLATION = args.ablation
 
+    if RUN_JUMBLED and args.method != "ann": sys.exit("ERROR: --jumbled is only implemented for the MLP")
+    
     main(args.training_mode)

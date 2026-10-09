@@ -1,0 +1,62 @@
+Training and crossvalidation code. Reads CSV files from ../data/ folder.
+  - random_state seed is set to 30770, jumbled flag set to False
+  - binder_label is True if abs(Cyp7 Avg, L2FC) > 0 ; used as proxy, any measured property except for PGC works.
+  - coreg_label is True if abs(PGC Avg, L2FC) > 0.45
+  - activity_label is True if ANY abs(PGC Avg, Cyp7 Av, Cyp8 Avg) is > 0.45
+  ablation=no_full
+  files used: ['../data/out_eterms_IUWtail_7tt8_lid.csv', '../data/rl/out_eterms_4pld.csv', '../data/rl/out_eterms_7tt8.csv', '../data/db/out_eterms_4pld.csv', '../data/db/out_eterms_7tt8.csv']
+  rows=1992 compounds=1781 binders=250
+~~~TRAINING BLIP-L
+early stop at epoch= 251
+fold: 0
+ AUPRC: 0.21
+ AUROC: 0.64
+ Precision: 0.21
+ Recall: 0.61
+ Accuracy: 0.55
+ MCC: 0.10
+early stop at epoch= 98
+fold: 1
+ AUPRC: 0.19
+ AUROC: 0.60
+ Precision: 0.20
+ Recall: 0.64
+ Accuracy: 0.53
+ MCC: 0.10
+early stop at epoch= 167
+fold: 2
+ AUPRC: 0.26
+ AUROC: 0.63
+ Precision: 0.26
+ Recall: 0.69
+ Accuracy: 0.52
+ MCC: 0.13
+~~~TRAINING ALIP-L, loading blip-l.pth
+ binder_pred, top 10% cutoff: 0.9815929889678965
+ binder_pred, top 30% cutoff: 0.20950478315353385
+ binder_pred, top 50% cutoff: -0.2864682674407959
+   Activators before truncation  63
+   Activators after truncation  48
+   Dataset  598
+fold: 0
+ AUPRC: 0.35
+ AUROC: 0.83
+ Precision: 0.36
+ Recall: 0.88
+ Accuracy: 0.66
+ MCC: 0.30
+fold: 1
+ AUPRC: 0.32
+ AUROC: 0.82
+ Precision: 0.35
+ Recall: 0.83
+ Accuracy: 0.64
+ MCC: 0.26
+early stop at epoch= 2050
+fold: 2
+ AUPRC: 0.11
+ AUROC: 0.69
+ Precision: 0.13
+ Recall: 0.54
+ Accuracy: 0.69
+ MCC: 0.13

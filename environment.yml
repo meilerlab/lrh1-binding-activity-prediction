@@ -1,5 +1,6 @@
 name: lrh1models
 channels:
+  - pytorch
   - conda-forge
   - bioconda
   - defaults
@@ -15,3 +16,5 @@ dependencies:
   - rdkit
   - biopython
   - mdanalysis
+  - xgboost
+  - lightgbm

@@ -24,7 +24,7 @@ Chang-Gonzalez AC, Campbell AN, Bell EW, Blind R, Meiler J. Structure-guided com
 ├── environment.yml                  # Conda environment 
 ├── dock.xml                         # XML script to dock and score protein-ligand models in RosettaLigand
 ├── out/                             # Pre-computed predictions and filtered lists for VU98k compounds
-├── out_crossval_repeat/             # Random seed cross-validation reports
+├── out_crossval_repeats_grouped/    # Random seed compound-grouped cross-validation reports
 ├── additional_scripts/              # Standalone analysis scripts
 └── data.tgz                         # Input data: compound libraries (S2k, VU98k), energy terms 
 ```

@@ -19,13 +19,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-plt.rcParams["font.size"] = 12
+plt.rcParams["font.size"] = 14
 
-FILE_PATTERN_REGULAR = "../out_crossval_repeats/seed_*.txt"
-FILE_PATTERN_JUMBLED = "../out_crossval_repeats/seed_*_jumbled.txt"
+# training on grouped folds
+FILE_PATTERN_REGULAR = "../out_crossval_repeats_grouped/seed_*.txt"
+FILE_PATTERN_JUMBLED = "../out_crossval_repeats_grouped/seed_*_jumbled.txt"
 
 METRICS  = ["Accuracy","MCC", "AUROC","AUPRC"]
 SECTIONS = ["BLIP-L", "ALIP-L"]
+ANN_RE = re.compile(r"^seed_\d+\.txt$")
 
 # Per-section positive rate (fraction of positive examples).
 # Used for AUPRC and Accuracy random-guess baselines.
@@ -82,7 +84,7 @@ def parse_file(filepath: str) -> dict:
         for line in fh:
             line = line.strip()
 
-            m = re.match(r"~~~TRAINING\s+(\S+)", line)
+            m = re.match(r"~~~TRAINING\s+(BLIP-L|ALIP-L)\b",line)
             if m:
                 name = m.group(1)
                 current_section = name if name in SECTIONS else None
@@ -112,7 +114,8 @@ def parse_file(filepath: str) -> dict:
 def collect(pattern: str, label: str) -> dict:
     all_files = sorted(glob.glob(pattern))
     if label == "regular":
-        files = [f for f in all_files if "_jumbled" not in Path(f).name]
+        #files = [f for f in all_files if "_jumbled" not in Path(f).name]
+        files = [f for f in all_files if ANN_RE.match(Path(f).name)]
     else:
         files = all_files
 
@@ -201,7 +204,7 @@ def violin_panel(ax, data_reg: dict, data_jum: dict,
     ax.set_xticklabels(METRICS)
     ax.set_xlim(group_centres[0] - GROUP_SPACING / 2,
                 group_centres[-1] + GROUP_SPACING / 2)
-    ax.set_title(section, fontsize=12)
+    ax.set_title(section, fontsize=14)
     ax.set_ylabel("Value")
     ax.yaxis.set_major_locator(plt.MultipleLocator(0.2))
     ax.set_ylim(-0.45,1.0)
@@ -214,7 +217,7 @@ def violin_panel(ax, data_reg: dict, data_jum: dict,
         plt.Line2D([0], [0], color="crimson", linewidth=1.4,
                    linestyle="-", label="Random"),
     ]
-    ax.legend(handles=legend_handles, fontsize=11, frameon=True, facecolor='white',
+    ax.legend(handles=legend_handles, fontsize=12, frameon=True, facecolor='white',
               loc="lower right", handlelength=1.0, handleheight=0.5)
 
 ######################################################################
